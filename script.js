@@ -71,8 +71,8 @@
         id: String(r.id || uid()),
         a: r.a, b: r.b, type: r.type,
         dir: DIRS.indexOf(r.dir) >= 0 ? r.dir : 'to',
-        label: typeof r.label === 'string' ? r.label : '',
-        desc: typeof r.desc === 'string' ? r.desc : ''
+        label: typeof r.label === 'string' ? r.label.slice(0, 20) : '',
+        desc: typeof r.desc === 'string' ? r.desc.slice(0, 20) : ''
       });
     });
     return { chars: chars, rels: rels };
@@ -175,7 +175,6 @@
       b.textContent = it.text;
       b.title = it.title;
       if (it.cls) b.className = it.cls;
-      // 노드 드래그가 시작되지 않도록 이벤트 전파 차단
       b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
       b.addEventListener('click', function (e) { e.stopPropagation(); it.fn(); });
       row.appendChild(b);
@@ -210,7 +209,7 @@
     renderNodes();
   }
 
-  /* ===== 렌더링: 관계선 (SVG, 화살표 포함) ===== */
+  /* ===== 렌더링: 관계선 (SVG, 화살표 & 호버 툴팁 포함) ===== */
   function radiusOf(c) {
     var a = nodesEl.querySelector('.node[data-id="' + c.id + '"] .avatar');
     return a ? a.offsetWidth / 2 : 42;
@@ -220,7 +219,6 @@
     linesEl.innerHTML = '';
     linesEl.setAttribute('viewBox', '0 0 ' + BOARD_W + ' ' + BOARD_H);
 
-    // 관계 종류별 화살표 머리 (선 색상과 동일)
     var defs = svgEl('defs', {});
     Object.keys(REL_TYPES).forEach(function (k) {
       var m = svgEl('marker', {
@@ -248,15 +246,14 @@
       var len = Math.hypot(dx, dy) || 1;
       var nx = -dy / len, ny = dx / len;
       var rA = radiusOf(A), rB = radiusOf(B);
-      if (len < rA + rB + 16) return;   // 아이콘이 거의 겹치면 선을 그리지 않음
+      if (len < rA + rB + 16) return;
 
       list.forEach(function (r, i) {
-        var off = (i - (list.length - 1) / 2) * 50;  // 같은 두 캐릭터 사이 여러 관계는 곡선으로 분리
+        var off = (i - (list.length - 1) / 2) * 50;
         var cx = (A.x + B.x) / 2 + nx * off;
         var cy = (A.y + B.y) / 2 + ny * off;
         var type = REL_TYPES[r.type];
 
-        // 화살표가 붙는 쪽 결정 (경로는 항상 A → B 방향으로 그림)
         var dir = r.dir || 'to';
         var atStart = false, atEnd = false;
         function mark(id) { if (id === B.id) atEnd = true; else atStart = true; }
@@ -264,7 +261,6 @@
         else if (dir === 'from') mark(r.a);
         else if (dir === 'both') { atStart = true; atEnd = true; }
 
-        // 선을 아이콘 테두리까지만 그리고, 화살표 쪽은 머리 길이만큼 더 띄움
         var gapA = rA + (atStart ? 8 : 3), gapB = rB + (atEnd ? 8 : 3);
         var ux = cx - A.x, uy = cy - A.y, ul = Math.hypot(ux, uy) || 1;
         var vx = cx - B.x, vy = cy - B.y, vl = Math.hypot(vx, vy) || 1;
@@ -281,6 +277,15 @@
         var ly = 0.25 * sy + 0.5 * cy + 0.25 * ey;
         var txt = svgEl('text', { x: lx, y: ly });
         txt.textContent = r.label || type.name;
+
+        // 관계선 마우스 호버 시 세부 설명(r.desc)이 보이도록 SVG title 추가
+        if (r.desc && r.desc.trim() !== '') {
+          var titleEl = svgEl('title', {});
+          titleEl.textContent = r.desc;
+          hit.appendChild(titleEl);
+          vis.appendChild(titleEl.cloneNode(true));
+          txt.appendChild(titleEl.cloneNode(true));
+        }
 
         var open = function () { if (!connectMode) openRelModal(r.id); };
         hit.addEventListener('click', open);
@@ -440,7 +445,6 @@
     if (!c) fName.focus();
   }
 
-  // 현재 캐릭터 기준 화살표 방향 기호: → (내가 상대에게), ← (상대가 나에게), ↔, —
   function dirSymbol(r, meId) {
     var d = r.dir || 'to';
     if (d === 'both') return '↔';
@@ -543,10 +547,9 @@
     var id = charCtx;
     if (!getChar(id)) return;
     deleteChar(id);
-    if (!getChar(id)) hideModal(charModal);   // 확인 후 실제로 삭제됐을 때만 닫기
+    if (!getChar(id)) hideModal(charModal);
   });
 
-  // 프로필 사진 파일 → 256x256 정사각형으로 잘라 줄인 뒤 data URL로 저장 (localStorage 용량 절약)
   fImgFile.addEventListener('change', function (e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -642,8 +645,6 @@
     rDir.value = val;
   }
 
-  // openRelModal(relId)  → 기존 관계 수정
-  // openRelModal(null, aId, bId) → 새 관계 추가
   function openRelModal(relId, a, b) {
     var r = relId ? getRel(relId) : null;
     if (relId && !r) return;
@@ -665,7 +666,12 @@
   $('relForm').addEventListener('submit', function (e) {
     e.preventDefault();
     if (!relCtx) return;
-    var vals = { type: getType(), dir: rDir.value, label: rLabel.value.trim(), desc: rDesc.value };
+    var vals = { 
+      type: getType(), 
+      dir: rDir.value, 
+      label: rLabel.value.trim().slice(0, 20), 
+      desc: rDesc.value.trim().slice(0, 20) // 최대 20자 제한
+    };
 
     if (relCtx.id) {
       var r = getRel(relCtx.id);
