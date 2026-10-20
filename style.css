@@ -168,15 +168,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
   -webkit-user-select: none;
 }
 
-/* ===== 관계선 SVG 호버 말풍선 ===== */
-.rel-hover-fo {
-  overflow: visible;
+/* ===== HTML 기반 관계선 호버 말풍선 (아이콘 호버와 동일 스타일) ===== */
+.rel-hover-anchor {
+  position: absolute;
   pointer-events: none;
-  display: none;
+  z-index: 10;
+}
+.rel-hover-wrap {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 .rel-hover-box {
-  display: inline-block;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
   background: #ffffff;
   color: #3a3935;
@@ -185,11 +191,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--line);
-  transform: translateY(-100%);
-}
-
-.lines .rel-group:hover .rel-hover-fo {
-  display: block;
 }
 
 .empty {
@@ -324,7 +325,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .node.dragging .node-menu,
 .connect-on .node-menu { display: none !important; }
-.connect-on .rel-hover-fo { display: none !important; }
+.connect-on .rel-hover-anchor { display: none !important; }
 
 /* ===== 모달 ===== */
 .modal {
