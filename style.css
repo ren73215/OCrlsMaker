@@ -261,6 +261,46 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .connect-on .node { cursor: pointer; }
 
+/* ===== 호버 설정 메뉴 (마우스 환경에서만) ===== */
+.node-menu {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-bottom: 8px;          /* 아이콘과 붙어 있어서 마우스를 옮겨도 사라지지 않음 */
+  z-index: 8;
+  cursor: default;
+}
+.node-menu .row {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #3a3935;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.node-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #f6f3ea;
+  font-size: 0.75rem;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.node-menu button:hover { background: rgba(255, 255, 255, 0.18); }
+.node-menu button.del:hover { background: var(--danger); }
+
+@media (hover: hover) {
+  .node:hover { z-index: 6; }
+  .node:hover .node-menu { display: block; }
+}
+.node.dragging .node-menu,
+.connect-on .node-menu { display: none !important; }
+
 /* ===== 모달 ===== */
 .modal {
   position: fixed;
@@ -325,6 +365,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 16px;              /* iOS 확대 방지 */
 }
 .field textarea { resize: vertical; min-height: 72px; }
+.field select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 16px;
+}
+.field select:focus { outline: 2px solid rgba(91, 107, 122, 0.4); border-color: var(--accent); }
+.file-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.file-btn { display: inline-block; }
+.file-note { color: var(--ink-soft); font-size: 0.78rem; }
 .field input:focus, .field textarea:focus, .rel-add select:focus {
   outline: 2px solid rgba(91, 107, 122, 0.4);
   border-color: var(--accent);
