@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>캐릭터 관계망 아카이브</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 상단 바: 제목 / 버튼 / 범례 -->
+  <header class="topbar">
+    <h1 class="title">캐릭터 관계망 아카이브</h1>
+
+    <div class="toolbar">
+      <button type="button" id="btnAdd" class="btn primary">＋ 새 캐릭터</button>
+      <button type="button" id="btnConnect" class="btn">관계 연결 모드</button>
+      <button type="button" id="btnExport" class="btn">내보내기</button>
+      <button type="button" id="btnImport" class="btn">불러오기</button>
+      <button type="button" id="btnReset" class="btn danger">전체 초기화</button>
+      <input type="file" id="fileInput" accept="application/json,.json" hidden>
+    </div>
+
+    <ul class="legend" id="legend" aria-label="관계 색상 범례"></ul>
+  </header>
+
+  <!-- 관계 연결 모드 안내 -->
+  <div id="hint" class="hint" hidden></div>
+
+  <!-- 관계망 보드 (스크롤 가능) -->
+  <main id="boardWrap" class="board-wrap">
+    <div id="board" class="board">
+      <svg id="lines" class="lines" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="nodes" class="nodes"></div>
+      <p id="empty" class="empty">아직 캐릭터가 없어요.<br>‘＋ 새 캐릭터’ 버튼으로 첫 캐릭터를 등록해 보세요.</p>
+    </div>
+  </main>
+
+  <!-- 캐릭터 추가 / 상세 정보 모달 -->
+  <div id="charModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="charModalTitle">
+      <div class="modal-head">
+        <h2 id="charModalTitle">새 캐릭터 추가</h2>
+        <button type="button" class="icon-btn" data-close="charModal" aria-label="닫기">✕</button>
+      </div>
+
+      <form id="charForm" class="modal-body" autocomplete="off">
+        <div class="preview-row">
+          <div class="preview-avatar" id="previewAvatar"><img id="imgPreview" alt="" draggable="false"></div>
+          <div class="preview-fields">
+            <label class="field">
+              <span>캐릭터 이름</span>
+              <input type="text" id="fName" maxlength="30" required placeholder="이름을 입력하세요">
+            </label>
+            <label class="field">
+              <span>프로필 사진 URL</span>
+              <input type="url" id="fImg" placeholder="https://... (비워두면 기본 아바타)">
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <span>포인트 색상</span>
+          <div class="color-row">
+            <input type="color" id="fColor" value="#e07a5f" aria-label="포인트 색상 선택">
+            <div class="swatches" id="swatches"></div>
+          </div>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" id="fMain">
+          <span>내 메인 캐릭터로 지정 (보드에서 크게 표시)</span>
+        </label>
+
+        <label class="field">
+          <span>세부 서사</span>
+          <textarea id="fStory" rows="4" placeholder="배경, 성격, 사건 등 자유롭게 적어주세요"></textarea>
+        </label>
+
+        <label class="field">
+          <span>메모</span>
+          <textarea id="fMemo" rows="3" placeholder="관계 상세 설명, 설정 메모 등"></textarea>
+        </label>
+
+        <!-- 상세 모달에서만 보이는 관계 목록 -->
+        <section id="relSection" class="rel-section" hidden>
+          <h3>이 캐릭터의 관계</h3>
+          <ul id="relList" class="rel-list"></ul>
+          <div class="rel-add">
+            <select id="relTarget" aria-label="관계를 맺을 캐릭터"></select>
+            <button type="button" id="btnRelAdd" class="btn small">관계 추가</button>
+          </div>
+        </section>
+
+        <div class="modal-foot">
+          <button type="button" id="btnCharDelete" class="btn danger" hidden>삭제</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn" data-close="charModal">닫기</button>
+          <button type="submit" class="btn primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 관계 설정 모달 -->
+  <div id="relModal" class="modal top" hidden>
+    <div class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="relModalTitle">
+      <div class="modal-head">
+        <h2 id="relModalTitle">관계 설정</h2>
+        <button type="button" class="icon-btn" data-close="relModal" aria-label="닫기">✕</button>
+      </div>
+
+      <form id="relForm" class="modal-body" autocomplete="off">
+        <p class="rel-pair" id="relPair"></p>
+
+        <div class="field">
+          <span>관계 종류</span>
+          <div class="type-group" id="typeGroup"></div>
+        </div>
+
+        <label class="field">
+          <span>관계 이름 (선택)</span>
+          <input type="text" id="rLabel" maxlength="20" placeholder="예: 소꿉친구, 라이벌">
+        </label>
+
+        <label class="field">
+          <span>관계 상세 설명</span>
+          <textarea id="rDesc" rows="4" placeholder="두 캐릭터 사이의 이야기를 적어주세요"></textarea>
+        </label>
+
+        <div class="modal-foot">
+          <button type="button" id="btnRelDelete" class="btn danger" hidden>관계 삭제</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn" data-close="relModal">취소</button>
+          <button type="submit" class="btn primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
