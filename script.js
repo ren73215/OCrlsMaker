@@ -28,7 +28,7 @@
   function $(id) { return document.getElementById(id); }
   var wrap = $('boardWrap'), board = $('board'), linesEl = $('lines'), nodesEl = $('nodes');
   var emptyEl = $('empty'), hintEl = $('hint'), btnConnect = $('btnConnect');
-  var charModal = $('charModal'), relModal = $('relModal'), relTooltip = $('relTooltip');
+  var charModal = $('charModal'), relModal = $('relModal');
   var fName = $('fName'), fImgFile = $('fImgFile'), fColor = $('fColor'), fMain = $('fMain');
   var rDir = $('rDir');
   var fStory = $('fStory'), fMemo = $('fMemo');
@@ -209,7 +209,7 @@
     renderNodes();
   }
 
-  /* ===== 렌더링: 관계선 (SVG 및 커스텀 툴팁 이벤트) ===== */
+  /* ===== 렌더링: 관계선 (HTML 컨테이너를 활용한 아이콘 호버 스타일 적용) ===== */
   function radiusOf(c) {
     var a = nodesEl.querySelector('.node[data-id="' + c.id + '"] .avatar');
     return a ? a.offsetWidth / 2 : 42;
@@ -278,31 +278,6 @@
         var txt = svgEl('text', { x: lx, y: ly });
         txt.textContent = r.label || type.name;
 
-        // 관계선 마우스 호버 시 커스텀 툴팁 이벤트 연결
-        if (r.desc && r.desc.trim() !== '') {
-          var showTip = function (e) {
-            if (connectMode) return;
-            relTooltip.textContent = r.desc;
-            relTooltip.hidden = false;
-            relTooltip.style.left = e.clientX + 'px';
-            relTooltip.style.top = e.clientY + 'px';
-          };
-          var moveTip = function (e) {
-            relTooltip.style.left = e.clientX + 'px';
-            relTooltip.style.top = e.clientY + 'px';
-          };
-          var hideTip = function () {
-            relTooltip.hidden = true;
-          };
-
-          hit.addEventListener('mousemove', moveTip);
-          hit.addEventListener('mouseenter', showTip);
-          hit.addEventListener('mouseleave', hideTip);
-          txt.addEventListener('mousemove', moveTip);
-          txt.addEventListener('mouseenter', showTip);
-          txt.addEventListener('mouseleave', hideTip);
-        }
-
         var open = function () { if (!connectMode) openRelModal(r.id); };
         hit.addEventListener('click', open);
         txt.addEventListener('click', open);
@@ -310,6 +285,35 @@
         linesEl.appendChild(hit);
         linesEl.appendChild(vis);
         linesEl.appendChild(txt);
+
+        // HTML 보드 내에 관계선 위치를 기준으로 아이콘 호버와 완전히 동일한 툴팁 컨테이너 생성
+        if (r.desc && r.desc.trim() !== '') {
+          var relGroup = document.createElement('div');
+          relGroup.className = 'rel-group';
+          relGroup.style.position = 'absolute';
+          relGroup.style.left = lx + 'px';
+          relGroup.style.top = ly + 'px';
+          relGroup.style.width = '0px';
+          relGroup.style.height = '0px';
+          relGroup.style.pointerEvents = 'none';
+
+          var hoverWrap = document.createElement('div');
+          hoverWrap.className = 'rel-hover-wrap';
+
+          var hoverBox = document.createElement('div');
+          hoverBox.className = 'rel-hover-box';
+          hoverBox.textContent = r.desc;
+
+          hoverWrap.appendChild(hoverBox);
+          relGroup.appendChild(hoverWrap);
+
+          // 선을 클릭했을 때도 모달이 열리도록 투명 영역이나 이벤트 전달
+          relGroup.style.pointerEvents = 'auto';
+          relGroup.style.cursor = 'pointer';
+          relGroup.addEventListener('click', open);
+
+          nodesEl.appendChild(relGroup);
+        }
       });
     });
   }
