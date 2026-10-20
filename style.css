@@ -13,7 +13,7 @@
   --shadow: 0 6px 20px rgba(60, 55, 45, 0.14);
 }
 
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   height: 100%;
@@ -190,7 +190,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   align-items: center;
   pointer-events: auto;
   cursor: grab;
-  touch-action: none;           /* 노드 위에서만 드래그, 빈 곳은 스크롤 */
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -268,7 +268,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  padding-bottom: 8px;          /* 아이콘과 붙어 있어서 마우스를 옮겨도 사라지지 않음 */
+  padding-bottom: 8px;
   z-index: 8;
   cursor: default;
 }
@@ -362,7 +362,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  font-size: 16px;              /* iOS 확대 방지 */
+  font-size: 16px;
 }
 .field textarea { resize: vertical; min-height: 72px; }
 .field select {
