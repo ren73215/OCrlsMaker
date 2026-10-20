@@ -168,6 +168,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
   -webkit-user-select: none;
 }
 
+/* 커스텀 관계선 툴팁 박스 */
+.rel-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: #3a3935;
+  color: #f6f3ea;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  transform: translate(-50%, -130%);
+}
+.rel-tooltip[hidden] { display: none; }
+
 .empty {
   position: absolute;
   top: 40%;
@@ -261,7 +278,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .connect-on .node { cursor: pointer; }
 
-/* ===== 호버 설정 메뉴 (마우스 환경에서만) ===== */
+/* ===== 호버 설정 메뉴 ===== */
 .node-menu {
   display: none;
   position: absolute;
