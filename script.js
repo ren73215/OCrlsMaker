@@ -28,7 +28,7 @@
   function $(id) { return document.getElementById(id); }
   var wrap = $('boardWrap'), board = $('board'), linesEl = $('lines'), nodesEl = $('nodes');
   var emptyEl = $('empty'), hintEl = $('hint'), btnConnect = $('btnConnect');
-  var charModal = $('charModal'), relModal = $('relModal');
+  var charModal = $('charModal'), relModal = $('relModal'), relTooltip = $('relTooltip');
   var fName = $('fName'), fImgFile = $('fImgFile'), fColor = $('fColor'), fMain = $('fMain');
   var rDir = $('rDir');
   var fStory = $('fStory'), fMemo = $('fMemo');
@@ -209,7 +209,7 @@
     renderNodes();
   }
 
-  /* ===== 렌더링: 관계선 (SVG, 화살표 & 호버 툴팁 포함) ===== */
+  /* ===== 렌더링: 관계선 (SVG 및 커스텀 툴팁 이벤트) ===== */
   function radiusOf(c) {
     var a = nodesEl.querySelector('.node[data-id="' + c.id + '"] .avatar');
     return a ? a.offsetWidth / 2 : 42;
@@ -278,13 +278,29 @@
         var txt = svgEl('text', { x: lx, y: ly });
         txt.textContent = r.label || type.name;
 
-        // 관계선 마우스 호버 시 세부 설명(r.desc)이 보이도록 SVG title 추가
+        // 관계선 마우스 호버 시 커스텀 툴팁 이벤트 연결
         if (r.desc && r.desc.trim() !== '') {
-          var titleEl = svgEl('title', {});
-          titleEl.textContent = r.desc;
-          hit.appendChild(titleEl);
-          vis.appendChild(titleEl.cloneNode(true));
-          txt.appendChild(titleEl.cloneNode(true));
+          var showTip = function (e) {
+            if (connectMode) return;
+            relTooltip.textContent = r.desc;
+            relTooltip.hidden = false;
+            relTooltip.style.left = e.clientX + 'px';
+            relTooltip.style.top = e.clientY + 'px';
+          };
+          var moveTip = function (e) {
+            relTooltip.style.left = e.clientX + 'px';
+            relTooltip.style.top = e.clientY + 'px';
+          };
+          var hideTip = function () {
+            relTooltip.hidden = true;
+          };
+
+          hit.addEventListener('mousemove', moveTip);
+          hit.addEventListener('mouseenter', showTip);
+          hit.addEventListener('mouseleave', hideTip);
+          txt.addEventListener('mousemove', moveTip);
+          txt.addEventListener('mouseenter', showTip);
+          txt.addEventListener('mouseleave', hideTip);
         }
 
         var open = function () { if (!connectMode) openRelModal(r.id); };
