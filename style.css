@@ -147,12 +147,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   width: 100%;
   height: 100%;
 }
-.lines { pointer-events: none; }
+.lines { pointer-events: auto; }
 .nodes { pointer-events: none; }
 
-.lines .hit { stroke: transparent; stroke-width: 20; fill: none; pointer-events: stroke; cursor: pointer; }
-.lines .rel { fill: none; stroke-width: 4; stroke-linecap: round; pointer-events: none; opacity: 0.92; }
-.lines .hit:hover + .rel { stroke-width: 6; }
+.lines .rel-group { cursor: pointer; }
+.lines .hit { stroke: transparent; stroke-width: 24; fill: none; pointer-events: stroke; }
+.lines .rel { fill: none; stroke-width: 4; stroke-linecap: round; pointer-events: none; opacity: 0.92; transition: stroke-width 0.15s; }
+.lines .rel-group:hover .rel { stroke-width: 6; }
 .lines text {
   font-size: 12px;
   font-weight: 600;
@@ -162,10 +163,33 @@ button, input, select, textarea { font: inherit; color: inherit; }
   stroke: var(--bg);
   stroke-width: 4px;
   paint-order: stroke;
-  pointer-events: all;
-  cursor: pointer;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* ===== 관계선 SVG 호버 말풍선 ===== */
+.rel-hover-fo {
+  overflow: visible;
+  pointer-events: none;
+  display: none;
+}
+.rel-hover-box {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3a3935;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  transform: translateY(-100%);
+}
+
+.lines .rel-group:hover .rel-hover-fo {
+  display: block;
 }
 
 .empty {
@@ -294,39 +318,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .node-menu button:hover { background: rgba(255, 255, 255, 0.18); }
 .node-menu button.del:hover { background: var(--danger); }
 
-/* ===== 관계선 호버 툴팁 (아이콘 호버와 동일한 구조/위치, 흰 배경 & 검은 글씨) ===== */
-.rel-hover-wrap {
-  position: absolute;
-  display: none;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding-bottom: 8px;
-  z-index: 8;
-  pointer-events: none;
-}
-.rel-hover-box {
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #3a3935;
-  font-size: 0.78rem;
-  font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--line);
-}
-
-.rel-group:hover { z-index: 7; }
-.rel-group:hover .rel-hover-wrap { display: block; }
-
 @media (hover: hover) {
   .node:hover { z-index: 6; }
   .node:hover .node-menu { display: block; }
 }
 .node.dragging .node-menu,
 .connect-on .node-menu { display: none !important; }
-.connect-on .rel-hover-wrap { display: none !important; }
+.connect-on .rel-hover-fo { display: none !important; }
 
 /* ===== 모달 ===== */
 .modal {
