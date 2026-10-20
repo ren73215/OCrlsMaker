@@ -209,7 +209,7 @@
     renderNodes();
   }
 
-  /* ===== 렌더링: 관계선 (SVG 단일 구조 내 foreignObject로 말풍선 구현) ===== */
+  /* ===== 렌더링: 관계선 (HTML 보드 위에 직접 호버 말풍선 배치) ===== */
   function radiusOf(c) {
     var a = nodesEl.querySelector('.node[data-id="' + c.id + '"] .avatar');
     return a ? a.offsetWidth / 2 : 42;
@@ -268,7 +268,6 @@
         var ex = B.x + vx / vl * gapB, ey = B.y + vy / vl * gapB;
         var d = 'M' + sx + ' ' + sy + ' Q' + cx + ' ' + cy + ' ' + ex + ' ' + ey;
 
-        // 하나의 SVG 그룹으로 묶어 완벽한 호버 영역 형성
         var group = svgEl('g', { 'class': 'rel-group' });
 
         var hit = svgEl('path', { d: d, 'class': 'hit' });
@@ -285,32 +284,40 @@
         group.appendChild(vis);
         group.appendChild(txt);
 
-        // 관계 세부 설명이 존재할 때 SVG 내부 foreignObject로 말풍선 생성
-        if (r.desc && r.desc.trim() !== '') {
-          var fo = svgEl('foreignObject', {
-            x: lx - 100,
-            y: ly - 10,
-            width: 200,
-            height: 60,
-            'class': 'rel-hover-fo'
-          });
-          var div = document.createElement('div');
-          div.style.textAlign = 'center';
-
-          var span = document.createElement('span');
-          span.className = 'rel-hover-box';
-          span.textContent = r.desc;
-
-          div.appendChild(span);
-          fo.appendChild(div);
-          group.appendChild(fo);
-        }
-
         group.addEventListener('click', function () {
           if (!connectMode) openRelModal(r.id);
         });
 
         linesEl.appendChild(group);
+
+        // 관계 세부 설명이 존재할 때 HTML 요소로 보드에 배치
+        if (r.desc && r.desc.trim() !== '') {
+          var anchor = document.createElement('div');
+          anchor.className = 'rel-hover-anchor';
+          anchor.style.left = lx + 'px';
+          anchor.style.top = ly + 'px';
+
+          var wrapEl = document.createElement('div');
+          wrapEl.className = 'rel-hover-wrap';
+
+          var boxEl = document.createElement('div');
+          boxEl.className = 'rel-hover-box';
+          boxEl.textContent = r.desc;
+
+          wrapEl.appendChild(boxEl);
+          anchor.appendChild(wrapEl);
+          anchor.style.display = 'none';
+
+          nodesEl.appendChild(anchor);
+
+          // SVG 그룹 마우스 오버/아웃 시 툴팁 표시/숨김
+          group.addEventListener('mouseenter', function () {
+            if (!connectMode) anchor.style.display = 'block';
+          });
+          group.addEventListener('mouseleave', function () {
+            anchor.style.display = 'none';
+          });
+        }
       });
     });
   }
