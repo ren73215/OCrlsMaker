@@ -6,6 +6,8 @@
   var BOARD_W = 1600;
   var BOARD_H = 1200;
   var SVG_NS = 'http://www.w3.org/2000/svg';
+  var MIN_Y = 90;   // 호버 메뉴가 보드 위로 잘리지 않도록 위쪽 여백 확보
+  var DIRS = ['to', 'from', 'both', 'none'];
 
   var REL_TYPES = {
     blue:   { name: '호의적', color: '#4a90e2' },
@@ -27,7 +29,8 @@
   var wrap = $('boardWrap'), board = $('board'), linesEl = $('lines'), nodesEl = $('nodes');
   var emptyEl = $('empty'), hintEl = $('hint'), btnConnect = $('btnConnect');
   var charModal = $('charModal'), relModal = $('relModal');
-  var fName = $('fName'), fImg = $('fImg'), fColor = $('fColor'), fMain = $('fMain');
+  var fName = $('fName'), fImgFile = $('fImgFile'), fColor = $('fColor'), fMain = $('fMain');
+  var rDir = $('rDir');
   var fStory = $('fStory'), fMemo = $('fMemo');
   var imgPreview = $('imgPreview'), previewAvatar = $('previewAvatar');
   var relSection = $('relSection'), relList = $('relList'), relTarget = $('relTarget');
@@ -38,6 +41,7 @@
   var connectMode = false;
   var connectFirst = null;
   var charCtx = null;   // 편집 중인 캐릭터 id (null이면 새 캐릭터)
+  var imgData = '';     // 모달에서 선택한 프로필 사진 (data URL, 비어 있으면 기본 아바타)
   var relCtx = null;    // { id, a, b }
 
   /* ===== 저장 / 불러오기 ===== */
@@ -53,7 +57,7 @@
         img: typeof c.img === 'string' ? c.img : '',
         color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : PRESETS[0],
         x: clamp(Number(c.x) || 200, 50, BOARD_W - 50),
-        y: clamp(Number(c.y) || 200, 50, BOARD_H - 50),
+        y: clamp(Number(c.y) || 200, MIN_Y, BOARD_H - 50),
         main: !!c.main,
         story: typeof c.story === 'string' ? c.story : '',
         memo: typeof c.memo === 'string' ? c.memo : ''
@@ -66,6 +70,7 @@
       rels.push({
         id: String(r.id || uid()),
         a: r.a, b: r.b, type: r.type,
+        dir: DIRS.indexOf(r.dir) >= 0 ? r.dir : 'to',
         label: typeof r.label === 'string' ? r.label : '',
         desc: typeof r.desc === 'string' ? r.desc : ''
       });
@@ -116,6 +121,7 @@
     state.chars.forEach(function (c) {
       var n = document.createElement('div');
       n.className = 'node' + (c.main ? ' main' : '') + (connectFirst === c.id ? ' selected' : '');
+      n.dataset.id = c.id;
       n.style.left = c.x + 'px';
       n.style.top = c.y + 'px';
       n.style.setProperty('--pc', c.color);
@@ -142,6 +148,7 @@
         n.appendChild(crown);
       }
       n.appendChild(tag);
+      n.appendChild(buildNodeMenu(c));
 
       n.addEventListener('pointerdown', function (e) { onNodeDown(e, c, n); });
       nodesEl.appendChild(n);
@@ -149,10 +156,82 @@
     emptyEl.hidden = state.chars.length > 0;
   }
 
-  /* ===== 렌더링: 관계선 (SVG) ===== */
+  /* ===== 호버 설정 메뉴 ===== */
+  function buildNodeMenu(c) {
+    var menu = document.createElement('div');
+    menu.className = 'node-menu';
+    var row = document.createElement('div');
+    row.className = 'row';
+
+    var items = [
+      { text: '상세', title: '상세 정보 / 수정', fn: function () { openCharModal(c.id); } },
+      { text: '연결', title: '여기서 관계 연결 시작', fn: function () { startConnectFrom(c); } },
+      { text: c.main ? '메인 해제' : '메인', title: '메인 캐릭터 지정/해제', fn: function () { toggleMain(c); } },
+      { text: '삭제', title: '캐릭터 삭제', cls: 'del', fn: function () { deleteChar(c.id); } }
+    ];
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = it.text;
+      b.title = it.title;
+      if (it.cls) b.className = it.cls;
+      // 노드 드래그가 시작되지 않도록 이벤트 전파 차단
+      b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      b.addEventListener('click', function (e) { e.stopPropagation(); it.fn(); });
+      row.appendChild(b);
+    });
+    menu.appendChild(row);
+    return menu;
+  }
+
+  function toggleMain(c) {
+    var willBeMain = !c.main;
+    state.chars.forEach(function (o) { o.main = false; });
+    c.main = willBeMain;
+    save();
+    renderNodes();
+  }
+
+  function deleteChar(id) {
+    var c = getChar(id);
+    if (!c) return;
+    if (!confirm('“' + c.name + '” 캐릭터와 연결된 모든 관계를 삭제할까요?\n되돌릴 수 없어요.')) return;
+    state.chars = state.chars.filter(function (o) { return o.id !== id; });
+    state.rels = state.rels.filter(function (r) { return r.a !== id && r.b !== id; });
+    if (connectFirst === id) connectFirst = null;
+    save();
+    render();
+  }
+
+  function startConnectFrom(c) {
+    if (!connectMode) toggleConnect();
+    connectFirst = c.id;
+    setHint('“' + c.name + '” 선택됨 — 화살표가 향할 두 번째 캐릭터를 눌러주세요.');
+    renderNodes();
+  }
+
+  /* ===== 렌더링: 관계선 (SVG, 화살표 포함) ===== */
+  function radiusOf(c) {
+    var a = nodesEl.querySelector('.node[data-id="' + c.id + '"] .avatar');
+    return a ? a.offsetWidth / 2 : 42;
+  }
+
   function renderLines() {
     linesEl.innerHTML = '';
     linesEl.setAttribute('viewBox', '0 0 ' + BOARD_W + ' ' + BOARD_H);
+
+    // 관계 종류별 화살표 머리 (선 색상과 동일)
+    var defs = svgEl('defs', {});
+    Object.keys(REL_TYPES).forEach(function (k) {
+      var m = svgEl('marker', {
+        id: 'arrow-' + k, viewBox: '0 0 10 10', refX: 6, refY: 5,
+        markerWidth: 13, markerHeight: 13, markerUnits: 'userSpaceOnUse',
+        orient: 'auto-start-reverse'
+      });
+      m.appendChild(svgEl('path', { d: 'M0 0 L10 5 L0 10 z', fill: REL_TYPES[k].color }));
+      defs.appendChild(m);
+    });
+    linesEl.appendChild(defs);
 
     var groups = {};
     state.rels.forEach(function (r) {
@@ -168,18 +247,38 @@
       var dx = B.x - A.x, dy = B.y - A.y;
       var len = Math.hypot(dx, dy) || 1;
       var nx = -dy / len, ny = dx / len;
+      var rA = radiusOf(A), rB = radiusOf(B);
+      if (len < rA + rB + 16) return;   // 아이콘이 거의 겹치면 선을 그리지 않음
 
       list.forEach(function (r, i) {
         var off = (i - (list.length - 1) / 2) * 50;  // 같은 두 캐릭터 사이 여러 관계는 곡선으로 분리
         var cx = (A.x + B.x) / 2 + nx * off;
         var cy = (A.y + B.y) / 2 + ny * off;
-        var d = 'M' + A.x + ' ' + A.y + ' Q' + cx + ' ' + cy + ' ' + B.x + ' ' + B.y;
         var type = REL_TYPES[r.type];
+
+        // 화살표가 붙는 쪽 결정 (경로는 항상 A → B 방향으로 그림)
+        var dir = r.dir || 'to';
+        var atStart = false, atEnd = false;
+        function mark(id) { if (id === B.id) atEnd = true; else atStart = true; }
+        if (dir === 'to') mark(r.b);
+        else if (dir === 'from') mark(r.a);
+        else if (dir === 'both') { atStart = true; atEnd = true; }
+
+        // 선을 아이콘 테두리까지만 그리고, 화살표 쪽은 머리 길이만큼 더 띄움
+        var gapA = rA + (atStart ? 8 : 3), gapB = rB + (atEnd ? 8 : 3);
+        var ux = cx - A.x, uy = cy - A.y, ul = Math.hypot(ux, uy) || 1;
+        var vx = cx - B.x, vy = cy - B.y, vl = Math.hypot(vx, vy) || 1;
+        var sx = A.x + ux / ul * gapA, sy = A.y + uy / ul * gapA;
+        var ex = B.x + vx / vl * gapB, ey = B.y + vy / vl * gapB;
+        var d = 'M' + sx + ' ' + sy + ' Q' + cx + ' ' + cy + ' ' + ex + ' ' + ey;
 
         var hit = svgEl('path', { d: d, 'class': 'hit' });
         var vis = svgEl('path', { d: d, 'class': 'rel', stroke: type.color });
-        var lx = 0.25 * A.x + 0.5 * cx + 0.25 * B.x;
-        var ly = 0.25 * A.y + 0.5 * cy + 0.25 * B.y;
+        if (atEnd) vis.setAttribute('marker-end', 'url(#arrow-' + r.type + ')');
+        if (atStart) vis.setAttribute('marker-start', 'url(#arrow-' + r.type + ')');
+
+        var lx = 0.25 * sx + 0.5 * cx + 0.25 * ex;
+        var ly = 0.25 * sy + 0.5 * cy + 0.25 * ey;
         var txt = svgEl('text', { x: lx, y: ly });
         txt.textContent = r.label || type.name;
 
@@ -215,7 +314,7 @@
       el.classList.add('dragging');
       var r = board.getBoundingClientRect();
       c.x = Math.round(clamp(ev.clientX - r.left - offX, 40, BOARD_W - 40));
-      c.y = Math.round(clamp(ev.clientY - r.top - offY, 40, BOARD_H - 40));
+      c.y = Math.round(clamp(ev.clientY - r.top - offY, MIN_Y, BOARD_H - 40));
       el.style.left = c.x + 'px';
       el.style.top = c.y + 'px';
       renderLines();
@@ -241,17 +340,17 @@
 
     if (!connectFirst) {
       connectFirst = c.id;
-      setHint('“' + c.name + '” 선택됨 — 이어줄 두 번째 캐릭터를 눌러주세요.');
+      setHint('“' + c.name + '” 선택됨 — 화살표가 향할 두 번째 캐릭터를 눌러주세요.');
       renderNodes();
     } else if (connectFirst === c.id) {
       connectFirst = null;
-      setHint('관계를 이을 첫 번째 캐릭터를 눌러주세요.');
+      setHint('화살표가 출발할 첫 번째 캐릭터를 눌러주세요.');
       renderNodes();
     } else {
       var first = connectFirst;
       connectFirst = null;
       renderNodes();
-      setHint('관계를 이을 첫 번째 캐릭터를 눌러주세요.');
+      setHint('화살표가 출발할 첫 번째 캐릭터를 눌러주세요.');
       openRelModal(null, first, c.id);
     }
   }
@@ -268,7 +367,7 @@
     btnConnect.classList.toggle('active', connectMode);
     btnConnect.textContent = connectMode ? '연결 모드 끄기' : '관계 연결 모드';
     document.body.classList.toggle('connect-on', connectMode);
-    setHint('관계를 이을 첫 번째 캐릭터를 눌러주세요.');
+    setHint('화살표가 출발할 첫 번째 캐릭터를 눌러주세요.');
     renderNodes();
   }
 
@@ -316,9 +415,8 @@
   }
 
   function updatePreview() {
-    var url = fImg.value.trim();
     imgPreview.onerror = function () { imgPreview.onerror = null; imgPreview.src = DEFAULT_AVATAR; };
-    imgPreview.src = url || DEFAULT_AVATAR;
+    imgPreview.src = imgData || DEFAULT_AVATAR;
   }
 
   function openCharModal(id) {
@@ -327,7 +425,8 @@
 
     $('charModalTitle').textContent = c ? '캐릭터 상세 정보' : '새 캐릭터 추가';
     fName.value = c ? c.name : '';
-    fImg.value = c ? c.img : '';
+    imgData = c ? c.img : '';
+    fImgFile.value = '';
     setColor(c ? c.color : PRESETS[Math.floor(Math.random() * PRESETS.length)]);
     fMain.checked = c ? !!c.main : state.chars.length === 0;
     fStory.value = c ? c.story : '';
@@ -339,6 +438,15 @@
 
     showModal(charModal);
     if (!c) fName.focus();
+  }
+
+  // 현재 캐릭터 기준 화살표 방향 기호: → (내가 상대에게), ← (상대가 나에게), ↔, —
+  function dirSymbol(r, meId) {
+    var d = r.dir || 'to';
+    if (d === 'both') return '↔';
+    if (d === 'none') return '—';
+    var meIsA = r.a === meId;
+    return (d === 'to') === meIsA ? '→' : '←';
   }
 
   function refreshRelList() {
@@ -365,7 +473,7 @@
       dot.style.background = type.color;
       var nm = document.createElement('span');
       nm.className = 'rname';
-      nm.textContent = other.name;
+      nm.textContent = dirSymbol(r, charCtx) + ' ' + other.name;
       var lb = document.createElement('span');
       lb.className = 'rlabel';
       lb.textContent = r.label ? r.label + ' (' + type.name + ')' : type.name;
@@ -398,7 +506,7 @@
   function spawnPos() {
     var cx = wrap.scrollLeft + wrap.clientWidth / 2 + (Math.random() - 0.5) * 140;
     var cy = wrap.scrollTop + wrap.clientHeight / 2 + (Math.random() - 0.5) * 140;
-    return { x: Math.round(clamp(cx, 60, BOARD_W - 60)), y: Math.round(clamp(cy, 60, BOARD_H - 60)) };
+    return { x: Math.round(clamp(cx, 60, BOARD_W - 60)), y: Math.round(clamp(cy, MIN_Y, BOARD_H - 60)) };
   }
 
   $('charForm').addEventListener('submit', function (e) {
@@ -408,7 +516,7 @@
 
     var data = {
       name: name,
-      img: fImg.value.trim(),
+      img: imgData,
       color: fColor.value,
       main: fMain.checked,
       story: fStory.value,
@@ -432,17 +540,51 @@
   });
 
   $('btnCharDelete').addEventListener('click', function () {
-    var c = getChar(charCtx);
-    if (!c) return;
-    if (!confirm('“' + c.name + '” 캐릭터와 연결된 모든 관계를 삭제할까요?\n되돌릴 수 없어요.')) return;
-    state.chars = state.chars.filter(function (o) { return o.id !== c.id; });
-    state.rels = state.rels.filter(function (r) { return r.a !== c.id && r.b !== c.id; });
-    save();
-    render();
-    hideModal(charModal);
+    var id = charCtx;
+    if (!getChar(id)) return;
+    deleteChar(id);
+    if (!getChar(id)) hideModal(charModal);   // 확인 후 실제로 삭제됐을 때만 닫기
   });
 
-  fImg.addEventListener('input', updatePreview);
+  // 프로필 사진 파일 → 256x256 정사각형으로 잘라 줄인 뒤 data URL로 저장 (localStorage 용량 절약)
+  fImgFile.addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+      alert('이미지 파일만 올릴 수 있어요.');
+      e.target.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onerror = function () { alert('파일을 읽지 못했어요.'); };
+    reader.onload = function () {
+      var im = new Image();
+      im.onerror = function () { alert('이 이미지는 불러올 수 없어요. 다른 파일을 선택해 주세요.'); };
+      im.onload = function () {
+        var SIZE = 256;
+        var side = Math.min(im.naturalWidth, im.naturalHeight);
+        var sx = (im.naturalWidth - side) / 2;
+        var sy = (im.naturalHeight - side) / 2;
+        var cv = document.createElement('canvas');
+        cv.width = SIZE;
+        cv.height = SIZE;
+        var ctx = cv.getContext('2d');
+        ctx.fillStyle = '#e6e1d6';
+        ctx.fillRect(0, 0, SIZE, SIZE);
+        ctx.drawImage(im, sx, sy, side, side, 0, 0, SIZE, SIZE);
+        imgData = cv.toDataURL('image/jpeg', 0.85);
+        updatePreview();
+      };
+      im.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  $('btnImgClear').addEventListener('click', function () {
+    imgData = '';
+    updatePreview();
+  });
   fColor.addEventListener('input', function () { setColor(fColor.value); });
 
   $('btnRelAdd').addEventListener('click', function () {
@@ -484,6 +626,22 @@
     if (el) el.checked = true;
   }
 
+  function fillDir(A, B, val) {
+    rDir.innerHTML = '';
+    [
+      ['to',   A.name + ' → ' + B.name],
+      ['from', B.name + ' → ' + A.name],
+      ['both', A.name + ' ↔ ' + B.name + ' (양방향)'],
+      ['none', '화살표 없음 (선만)']
+    ].forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o[0];
+      op.textContent = o[1];
+      rDir.appendChild(op);
+    });
+    rDir.value = val;
+  }
+
   // openRelModal(relId)  → 기존 관계 수정
   // openRelModal(null, aId, bId) → 새 관계 추가
   function openRelModal(relId, a, b) {
@@ -494,8 +652,9 @@
     var A = getChar(relCtx.a), B = getChar(relCtx.b);
     if (!A || !B) return;
 
-    relPair.textContent = A.name + '  ↔  ' + B.name;
+    relPair.textContent = A.name + '  ·  ' + B.name;
     setType(r ? r.type : 'blue');
+    fillDir(A, B, r ? (r.dir || 'to') : 'to');
     rLabel.value = r ? r.label : '';
     rDesc.value = r ? r.desc : '';
     $('btnRelDelete').hidden = !r;
@@ -506,13 +665,13 @@
   $('relForm').addEventListener('submit', function (e) {
     e.preventDefault();
     if (!relCtx) return;
-    var vals = { type: getType(), label: rLabel.value.trim(), desc: rDesc.value };
+    var vals = { type: getType(), dir: rDir.value, label: rLabel.value.trim(), desc: rDesc.value };
 
     if (relCtx.id) {
       var r = getRel(relCtx.id);
-      if (r) { r.type = vals.type; r.label = vals.label; r.desc = vals.desc; }
+      if (r) { r.type = vals.type; r.dir = vals.dir; r.label = vals.label; r.desc = vals.desc; }
     } else {
-      state.rels.push({ id: uid(), a: relCtx.a, b: relCtx.b, type: vals.type, label: vals.label, desc: vals.desc });
+      state.rels.push({ id: uid(), a: relCtx.a, b: relCtx.b, type: vals.type, dir: vals.dir, label: vals.label, desc: vals.desc });
     }
     save();
     renderLines();
