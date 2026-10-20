@@ -209,7 +209,7 @@
     renderNodes();
   }
 
-  /* ===== 렌더링: 관계선 (HTML 컨테이너를 활용한 아이콘 호버 스타일 적용) ===== */
+  /* ===== 렌더링: 관계선 (SVG 단일 구조 내 foreignObject로 말풍선 구현) ===== */
   function radiusOf(c) {
     var a = nodesEl.querySelector('.node[data-id="' + c.id + '"] .avatar');
     return a ? a.offsetWidth / 2 : 42;
@@ -268,6 +268,9 @@
         var ex = B.x + vx / vl * gapB, ey = B.y + vy / vl * gapB;
         var d = 'M' + sx + ' ' + sy + ' Q' + cx + ' ' + cy + ' ' + ex + ' ' + ey;
 
+        // 하나의 SVG 그룹으로 묶어 완벽한 호버 영역 형성
+        var group = svgEl('g', { 'class': 'rel-group' });
+
         var hit = svgEl('path', { d: d, 'class': 'hit' });
         var vis = svgEl('path', { d: d, 'class': 'rel', stroke: type.color });
         if (atEnd) vis.setAttribute('marker-end', 'url(#arrow-' + r.type + ')');
@@ -278,42 +281,36 @@
         var txt = svgEl('text', { x: lx, y: ly });
         txt.textContent = r.label || type.name;
 
-        var open = function () { if (!connectMode) openRelModal(r.id); };
-        hit.addEventListener('click', open);
-        txt.addEventListener('click', open);
+        group.appendChild(hit);
+        group.appendChild(vis);
+        group.appendChild(txt);
 
-        linesEl.appendChild(hit);
-        linesEl.appendChild(vis);
-        linesEl.appendChild(txt);
-
-        // HTML 보드 내에 관계선 위치를 기준으로 아이콘 호버와 완전히 동일한 툴팁 컨테이너 생성
+        // 관계 세부 설명이 존재할 때 SVG 내부 foreignObject로 말풍선 생성
         if (r.desc && r.desc.trim() !== '') {
-          var relGroup = document.createElement('div');
-          relGroup.className = 'rel-group';
-          relGroup.style.position = 'absolute';
-          relGroup.style.left = lx + 'px';
-          relGroup.style.top = ly + 'px';
-          relGroup.style.width = '0px';
-          relGroup.style.height = '0px';
-          relGroup.style.pointerEvents = 'none';
+          var fo = svgEl('foreignObject', {
+            x: lx - 100,
+            y: ly - 10,
+            width: 200,
+            height: 60,
+            'class': 'rel-hover-fo'
+          });
+          var div = document.createElement('div');
+          div.style.textAlign = 'center';
 
-          var hoverWrap = document.createElement('div');
-          hoverWrap.className = 'rel-hover-wrap';
+          var span = document.createElement('span');
+          span.className = 'rel-hover-box';
+          span.textContent = r.desc;
 
-          var hoverBox = document.createElement('div');
-          hoverBox.className = 'rel-hover-box';
-          hoverBox.textContent = r.desc;
-
-          hoverWrap.appendChild(hoverBox);
-          relGroup.appendChild(hoverWrap);
-
-          // 선을 클릭했을 때도 모달이 열리도록 투명 영역이나 이벤트 전달
-          relGroup.style.pointerEvents = 'auto';
-          relGroup.style.cursor = 'pointer';
-          relGroup.addEventListener('click', open);
-
-          nodesEl.appendChild(relGroup);
+          div.appendChild(span);
+          fo.appendChild(div);
+          group.appendChild(fo);
         }
+
+        group.addEventListener('click', function () {
+          if (!connectMode) openRelModal(r.id);
+        });
+
+        linesEl.appendChild(group);
       });
     });
   }
